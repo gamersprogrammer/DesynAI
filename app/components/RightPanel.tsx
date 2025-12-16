@@ -5,13 +5,18 @@ import { auth, app } from "@/firebase";
 import { doc, onSnapshot, getFirestore } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
-export default function RightPanel() {
+interface RightPanelProps {
+  onShareClick?: () => void;
+}
+
+export default function RightPanel({ onShareClick }: RightPanelProps) {
   const db = getFirestore(app);
 
   const router = useRouter();
 
   const [pct, setPct] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [weeklyData, setWeeklyData] = useState<any>(null);
 
   const WEEKLY_GOAL = 50;
 
@@ -29,6 +34,7 @@ export default function RightPanel() {
       }
 
       const data = snapshot.data();
+      setWeeklyData(data);
 
       const total =
         (data.Mon || 0) +
@@ -47,6 +53,35 @@ export default function RightPanel() {
 
     return () => unsubscribe();
   }, []);
+
+  const generateShareText = () => {
+    if (!weeklyData) return "";
+    
+    const total =
+      (weeklyData.Mon || 0) +
+      (weeklyData.Tue || 0) +
+      (weeklyData.Wed || 0) +
+      (weeklyData.Thu || 0) +
+      (weeklyData.Fri || 0) +
+      (weeklyData.Sat || 0) +
+      (weeklyData.Sun || 0);
+
+    return `🎨 My Weekly Design Performance on DesynAI
+
+📊 Progress: ${pct}% of ${WEEKLY_GOAL} prompts
+📈 Total Prompts: ${total}
+
+Weekly Breakdown:
+📅 Monday: ${weeklyData.Mon || 0}
+📅 Tuesday: ${weeklyData.Tue || 0}
+📅 Wednesday: ${weeklyData.Wed || 0}
+📅 Thursday: ${weeklyData.Thu || 0}
+📅 Friday: ${weeklyData.Fri || 0}
+📅 Saturday: ${weeklyData.Sat || 0}
+📅 Sunday: ${weeklyData.Sun || 0}
+
+Join me on DesynAI - AI-Powered Design Inspiration! 🚀`;
+  };
 
   if (loading) {
     return (
@@ -116,12 +151,18 @@ export default function RightPanel() {
       </div>
 
       <div className="w-full flex gap-2 mt-2">
-        <button className="flex-1 py-2 rounded-lg border border-[#23272f]"
+        <button 
+          className="flex-1 py-2 rounded-lg border border-[#23272f] hover:bg-white/5 transition"
           onClick={() => router.push('/projects')}>
           Continue
         </button>
-        <button className="flex gap-2 items-center justify-center py-2 px-3 rounded-lg border border-[#23272f]">
-          <Share2 width={16} height={16} /> Share
+        <button 
+          onClick={() => onShareClick?.(generateShareText())}
+          className="flex gap-2 items-center justify-center py-2 px-3 rounded-lg border border-[#23272f] hover:bg-white/5 transition"
+          title="Preview and share your progress"
+        >
+          <Share2 width={16} height={16} />
+          Share
         </button>
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { doc, onSnapshot, getFirestore } from "firebase/firestore";
 import { auth, app } from "@/firebase";
+import { incrementTodayPrompts } from "@/app/utils/promptTracker";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -27,7 +28,17 @@ export default function ChartCard() {
 
     const unsubscribe = onSnapshot(statsRef, (snapshot) => {
       if (!snapshot.exists()) {
-        setChartData([]);
+        // Initialize with all days as 0
+        const defaultData = [
+          { day: "Mon", prompts: 0 },
+          { day: "Tue", prompts: 0 },
+          { day: "Wed", prompts: 0 },
+          { day: "Thu", prompts: 0 },
+          { day: "Fri", prompts: 0 },
+          { day: "Sat", prompts: 0 },
+          { day: "Sun", prompts: 0 },
+        ];
+        setChartData(defaultData);
         setLoading(false);
         return;
       }

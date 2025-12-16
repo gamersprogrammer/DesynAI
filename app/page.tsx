@@ -4,17 +4,25 @@ import Header from "./components/Header";
 import StatCard from "./components/Statcard";
 import ChartCard from "./components/ChartCard";
 import RightPanel from "./components/RightPanel";
+import RatingModal from "./components/RatingModal";
+import SharePreviewModal from "./components/SharePreviewModal";
 import { Share2, Wallet, Heart, Star, LayoutDashboard } from "lucide-react";
 import { useState, useEffect } from "react";
 import { auth, db } from "@/firebase";
-import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { collection, query, orderBy, limit, onSnapshot, doc, onSnapshot as fsOnSnapshot } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import {useRouter} from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 export default function Page() {
   const [showHistory, setShowHistory] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareData, setShareData] = useState<string>("");
+  const [shareLoading, setShareLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [recentProjects, setRecentProjects] = useState<any[]>([]);
+  const [userRating, setUserRating] = useState<number | null>(null);
+  const [ratingRefresh, setRatingRefresh] = useState(0);
   const router = useRouter();
 
   // 🔹 Listen to Auth state
@@ -41,6 +49,55 @@ export default function Page() {
 
     return () => unsub();
   }, [user]);
+
+  // 🔹 Listen to user rating
+  useEffect(() => {
+    if (!user) return;
+
+    const statsRef = doc(db, "users", user.uid, "stats", "overview");
+    const unsub = fsOnSnapshot(statsRef, (snap) => {
+      if (snap.exists()) {
+        setUserRating(snap.data().rating || null);
+      }
+    });
+
+    return () => unsub();
+  }, [user, ratingRefresh]);
+
+  // 🔹 Handle share modal
+  const handleShareClick = (shareText: string) => {
+    setShareData(shareText);
+    setShowShareModal(true);
+  };
+
+  const handleConfirmShare = async () => {
+    setShareLoading(true);
+
+    // Try Web Share API first
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "My DesynAI Weekly Performance",
+          text: shareData,
+        });
+        setShowShareModal(false);
+      } catch (err) {
+        console.error("Share failed:", err);
+      }
+      setShareLoading(false);
+      return;
+    }
+
+    // Fallback: Copy to clipboard
+    try {
+      await navigator.clipboard.writeText(shareData);
+      setShowShareModal(false);
+    } catch (err) {
+      console.error("Copy failed:", err);
+    } finally {
+      setShareLoading(false);
+    }
+  };
 
   // 🔹 Wait for user to load
   if (!user) return <div className="p-10 text-white">Loading dashboard...</div>;
@@ -74,7 +131,7 @@ export default function Page() {
               field="weekTotal"
             />
 
-            <StatCard icon={<Star size={18} />} title="Rating" value="8.5" delta="+0.4" />
+            <StatCard icon={<Star size={18} />} title="Rating" value={userRating ? userRating.toFixed(1) : "No Rating"} delta={userRating ? "+Rated" : "Not rated"} />
           </div>
 
           {/* Center chart */}
@@ -100,11 +157,13 @@ export default function Page() {
 
           {/* Right panel */}
           <div className="col-span-12 lg:col-span-3 space-y-10 bg-black/50 backdrop-blur-md pt-4 border border-[#23272F] rounded-md">
-            <RightPanel />
+            <RightPanel onShareClick={handleShareClick} />
             <div className="card p-4">
               <h4 className="text-sm text-[var(--muted)]">Quick Action</h4>
               <div className="mt-3 flex flex-col gap-2">
-                <button className="py-2 rounded-lg bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] text-white border border-[#23272f]">
+                <button 
+                  onClick={() => setShowRatingModal(true)}
+                  className="py-2 rounded-lg bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] text-white border border-[#23272f]">
                   Rate Us
                 </button>
                 <button className="py-2 rounded-lg bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)] text-white border border-[#23272f]"
@@ -117,6 +176,20 @@ export default function Page() {
           </div>
         </section>
       </main>
+
+      <RatingModal 
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        onSuccess={() => setRatingRefresh(prev => prev + 1)}
+      />
+
+      <SharePreviewModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        onConfirm={handleConfirmShare}
+        shareText={shareData}
+        isLoading={shareLoading}
+      />
     </div>
   );
 }

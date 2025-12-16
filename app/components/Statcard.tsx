@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { doc, onSnapshot, getFirestore } from "firebase/firestore";
 import { app, auth } from "@/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
+import { Star } from "lucide-react";
 
 interface StatCardProps { 
   title: string; 
@@ -51,12 +52,38 @@ export default function StatCard({ title, value, delta, icon, path, field }: Sta
       </div>
 
       <div className="flex items-baseline gap-2">
-        <div className="text-2xl font-bold text-[#e6edf3]">{liveValue}</div>
+        {field === "rating" && typeof liveValue === "number" && liveValue > 0 ? (
+          <div className="flex flex-col gap-1">
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star
+                  key={star}
+                  className={`w-4 h-4 ${
+                    star <= Math.round(liveValue as number)
+                      ? "fill-yellow-400 text-yellow-400"
+                      : "text-gray-600"
+                  }`}
+                />
+              ))}
+            </div>
+            <div className="text-2xl font-bold text-[#e6edf3]">{(liveValue as number).toFixed(1)}</div>
+          </div>
+        ) : (
+          <div className="text-2xl font-bold text-[#e6edf3]">{liveValue}</div>
+        )}
         {delta && <div className="text-sm text-[#b0b7c3]">{delta}</div>}
       </div>
 
       <div className="h-1 bg-[rgba(255,255,255,0.02)] rounded-full mt-2">
-        <div className="h-1 rounded-full" style={{ width: "45%", background: "#23272f" }} />
+        <div
+          className="h-1 rounded-full"
+          style={{
+            width: field === "rating" && typeof liveValue === "number" 
+              ? `${(liveValue as number) * 20}%` 
+              : "45%",
+            background: "#23272f",
+          }}
+        />
       </div>
     </div>
   );

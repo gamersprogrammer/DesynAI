@@ -15,7 +15,7 @@ export default function SignInPage() {
     try {
       const result = await signInWithPopup(auth, provider);
       // User signed in successfully
-      console.log("Signed in:", result.user);
+      // console.log("Signed in:", result.user);
       router.push("/"); // redirect after login
     } catch (error: any) {
       if (error.code === "auth/user-cancelled") {
