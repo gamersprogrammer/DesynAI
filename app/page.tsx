@@ -6,12 +6,23 @@ import ChartCard from "./components/ChartCard";
 import RightPanel from "./components/RightPanel";
 import RatingModal from "./components/RatingModal";
 import SharePreviewModal from "./components/SharePreviewModal";
-import { Share2, Wallet, Heart, Star, LayoutDashboard } from "lucide-react";
+import { Star, LayoutDashboard } from "lucide-react";
 import { useState, useEffect } from "react";
 import { auth, db } from "@/firebase";
 import { collection, query, orderBy, limit, onSnapshot, doc, onSnapshot as fsOnSnapshot } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from 'next/navigation';
+import type { User } from "firebase/auth";
+import type { Timestamp, DocumentData } from "firebase/firestore";
+
+
+interface Project {
+  id: string;
+  title?: string;
+  name?: string;
+  updatedAt?: Timestamp;
+}
+
 
 export default function Page() {
   const [showHistory, setShowHistory] = useState(false);
@@ -19,8 +30,8 @@ export default function Page() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareData, setShareData] = useState<string>("");
   const [shareLoading, setShareLoading] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [recentProjects, setRecentProjects] = useState<any[]>([]);
+  const [user, setUser] = useState<User | null>(null);
+  const [recentProjects, setRecentProjects] = useState<Project[]>([]);
   const [userRating, setUserRating] = useState<number | null>(null);
   const [ratingRefresh, setRatingRefresh] = useState(0);
   const router = useRouter();
@@ -42,7 +53,7 @@ export default function Page() {
     );
 
     const unsub = onSnapshot(q, (snap) => {
-      const items: any[] = [];
+      const items: Project[] = [];
       snap.forEach((doc) => items.push({ id: doc.id, ...doc.data() }));
       setRecentProjects(items);
     });
@@ -111,7 +122,7 @@ export default function Page() {
           icon={<LayoutDashboard className="text-indigo-400 w-7 h-7" />}
           onHistoryClick={() => setShowHistory(true)}
         />
-
+        
         <section className="grid grid-cols-12 gap-6">
           {/* Left stats */}
           <div className="col-span-12 lg:col-span-3 space-y-4">

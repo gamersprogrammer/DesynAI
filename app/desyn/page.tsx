@@ -17,6 +17,8 @@ import JSZip from "jszip";
 import { saveAs } from "file-saver";
 
 import { auth, app } from "@/firebase"; // adjust path if needed
+import type { Timestamp } from "firebase/firestore";
+import type { User } from "firebase/auth";
 import {
   getFirestore,
   collection,
@@ -28,12 +30,25 @@ import {
   getDocs,
   getDoc,
   increment,
-  query,
-  orderBy,
-  limit,
 } from "firebase/firestore";
 
 const db = getFirestore(app);
+
+interface PromptEntry {
+  id?: string;
+  prompt: string;
+  response: string;
+  mode: "text" | "code";
+  time?: string;
+  createdAt?: Timestamp;
+}
+
+interface Project {
+  id: string;
+  title?: string;
+  updatedAt?: Timestamp;
+  lastPrompt?: string;
+}
 
 export default function DesynPage() {
   const router = useRouter();
@@ -50,17 +65,17 @@ export default function DesynPage() {
     "text"
   );
   const [sparkles, setSparkles] = useState<number[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
-  const [projectHistory, setProjectHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<PromptEntry[]>([]);
+  const [projectHistory, setProjectHistory] = useState<PromptEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
   // auth/user
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [initializing, setInitializing] = useState(true);
 
   // project meta (title)
-  const [projectMeta, setProjectMeta] = useState<any | null>(null);
-  const [project, setProject] = useState<any>(null);
+  const [projectMeta, setProjectMeta] = useState<Project | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
 
   // Sparkly loading animation
   useEffect(() => {
@@ -264,7 +279,7 @@ export default function DesynPage() {
     const source = projectId ? projectHistory : history;
     if (source.length === 0) return alert("No history to export!");
     const zip = new JSZip();
-    source.forEach((item: any, i: number) => {
+    source.forEach((item: PromptEntry, i: number) => {
       const fileName = `${i + 1} - ${item.mode}_${item.time?.replace(/:/g, "-")}.txt`;
       const content = `Prompt:\n${item.prompt}\n\nResponse:\n${item.response}`;
       zip.file(fileName, content);
@@ -285,7 +300,7 @@ export default function DesynPage() {
   // UI loading while auth initializing
   if (initializing) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--panel)] text-white">
+      <div className="min-h-screen flex items-center justify-center bg-(--panel) text-white">
         <div className="animate-spin h-8 w-8 border-b-2 border-white rounded-full" />
         <span className="ml-3">Checking authentication...</span>
       </div>
@@ -295,9 +310,9 @@ export default function DesynPage() {
   // If user not signed in -> show signin suggestion
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--panel)] text-white px-6">
+      <div className="min-h-screen flex items-center justify-center bg-(--panel) text-white px-6">
         <div className="max-w-md text-center bg-[#0b0c10] p-8 rounded-xl border border-gray-800">
-          <h2 className="text-xl font-semibold mb-2">You're not signed in</h2>
+          <h2 className="text-xl font-semibold mb-2">{`You're not signed in`}</h2>
           <p className="text-sm text-[#b0b7c3] mb-6">Sign in to save prompts and continue projects.</p>
           <div className="flex gap-3 justify-center">
             <button onClick={() => router.push("/signin")} className="px-4 py-2 rounded-lg bg-indigo-600">Go to Sign in</button>
@@ -311,7 +326,7 @@ export default function DesynPage() {
   const visibleHistory = projectName ? projectHistory : history;
 
   return (
-    <div className="min-h-screen bg-[var(--panel)] text-white flex overflow-hidden relative">
+    <div className="min-h-screen bg-(--panel) text-white flex overflow-hidden relative">
       <Sidebar />
 
       <main className="flex-1 p-8 md:p-10 flex flex-col max-md:mt-10">

@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { doc, onSnapshot, getFirestore } from "firebase/firestore";
 import { auth, app } from "@/firebase";
-import { incrementTodayPrompts } from "@/app/utils/promptTracker";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -60,7 +59,7 @@ export default function ChartCard() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [db]);
 
   if (loading) {
     return (
@@ -73,7 +72,7 @@ export default function ChartCard() {
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm text-[var(--muted)]">Weekly Performance</h3>
+        <h3 className="text-sm text-[(--muted)]">Weekly Performance</h3>
       </div>
 
       <div style={{ width: "100%", height: 260 }}>

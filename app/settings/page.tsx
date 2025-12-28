@@ -19,6 +19,7 @@ import Header from "../components/Header";
 import { auth, db } from "@/firebase";
 import { useRouter } from "next/navigation";
 import { doc, setDoc, getDoc } from "firebase/firestore";
+import Image from "next/image";
 
 export default function SettingsPage() {
   // Navigation State
@@ -165,7 +166,13 @@ export default function SettingsPage() {
                 <div className="relative">
                   <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-700 ring-4 ring-black/50 shadow-md">
                     {photoURL ? (
-                      <img src={photoURL} alt="Profile" className="w-full h-full object-cover" />
+                      <Image
+                        src={photoURL}
+                        alt="Profile"
+                        fill
+                        sizes="96px"
+                        className="object-cover"
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-500">
                         <User className="w-10 h-10" />

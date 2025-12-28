@@ -41,7 +41,7 @@ export default function StatCard({ title, value, delta, icon, path, field }: Sta
     });
 
     return () => unsub();
-  }, [path, field, user]);
+  }, [path, field, user, db]);
   
 
   return (
