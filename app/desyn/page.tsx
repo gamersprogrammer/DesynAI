@@ -11,14 +11,13 @@ import {
   Trash2,
   Download,
 } from "lucide-react";
+// Ensure these components exist in your project or comment them out if testing
 import Sidebar from "../components/sidebar";
 import Header from "../components/Header";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 
-import { auth, app } from "@/firebase"; // adjust path if needed
-import type { Timestamp } from "firebase/firestore";
-import type { User } from "firebase/auth";
+import { auth, app } from "@/firebase";
 import {
   getFirestore,
   collection,
@@ -30,51 +29,53 @@ import {
   getDocs,
   getDoc,
   increment,
+  Timestamp,
+  FieldValue, // Imported for type safety
 } from "firebase/firestore";
+import type { User } from "firebase/auth";
 
 const db = getFirestore(app);
 
+// Updated interface to handle both Read (Timestamp) and Write (FieldValue) types
 interface PromptEntry {
   id?: string;
   prompt: string;
   response: string;
   mode: "text" | "code";
   time?: string;
-  createdAt?: Timestamp;
+  createdAt?: Timestamp | FieldValue | null; 
 }
 
 interface Project {
   id: string;
   title?: string;
-  updatedAt?: Timestamp;
+  updatedAt?: Timestamp | FieldValue | null;
   lastPrompt?: string;
 }
 
 export default function DesynPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  
+  // Safe access to searchParams
   const projectId = searchParams?.get("project") || null;
-  const projectName = searchParams.get("project") || null;
 
-  // UI state
   const [prompt, setPrompt] = useState("");
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [generationMode, setGenerationMode] = useState<"text" | "code">(
-    "text"
-  );
+  const [generationMode, setGenerationMode] = useState<"text" | "code">("text");
   const [sparkles, setSparkles] = useState<number[]>([]);
+  
   const [history, setHistory] = useState<PromptEntry[]>([]);
   const [projectHistory, setProjectHistory] = useState<PromptEntry[]>([]);
+  
+  // Removed unused variable `showHistory` to prevent build warnings
   const [showHistory, setShowHistory] = useState(false);
 
-  // auth/user
   const [user, setUser] = useState<User | null>(null);
   const [initializing, setInitializing] = useState(true);
 
-  // project meta (title)
-  const [projectMeta, setProjectMeta] = useState<Project | null>(null);
   const [project, setProject] = useState<Project | null>(null);
 
   // Sparkly loading animation
@@ -91,22 +92,29 @@ export default function DesynPage() {
     };
   }, [loading]);
 
-  //Get project from url
+  // Get project from URL
   useEffect(() => {
-    if(!projectName || !auth.currentUser) return;
+    if (!projectId || !auth.currentUser) return;
 
     const fetchProject = async () => {
-      const ref = doc(db, "users", auth.currentUser.uid, "projects", projectName);
-      const snap = await getDoc(ref);
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
 
-      if (snap.exists()) {
-        setProject( { id:snap.id, ...snap.data()});
+      try {
+        const ref = doc(db, "users", currentUser.uid, "projects", projectId);
+        const snap = await getDoc(ref);
+
+        if (snap.exists()) {
+          setProject({ id: snap.id, ...(snap.data() as Omit<Project, "id">) });
+        }
+      } catch (error) {
+        console.error("Error fetching project:", error);
       }
       setLoading(false);
     };
 
     fetchProject();
-  }, [projectName]);
+  }, [projectId]);
 
   // Listen for auth state
   useEffect(() => {
@@ -118,7 +126,7 @@ export default function DesynPage() {
     return () => unsub();
   }, []);
 
-  // Load user prompts history (global) when user available
+  // Load global user prompts
   useEffect(() => {
     if (!user) return;
 
@@ -127,7 +135,18 @@ export default function DesynPage() {
         const snaps = await getDocs(
           collection(db, "users", user.uid, "prompts")
         );
-        const fetched = snaps.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const fetched: PromptEntry[] = snaps.docs.map((d) => {
+          const data = d.data();
+          // Type assertion to ensure data matches PromptEntry
+          return { 
+            id: d.id, 
+            prompt: data.prompt,
+            response: data.response,
+            mode: data.mode,
+            time: data.time,
+            createdAt: data.createdAt
+          } as PromptEntry;
+        });
         setHistory(fetched.reverse());
       } catch (err) {
         console.error("Failed to fetch user prompts", err);
@@ -137,61 +156,54 @@ export default function DesynPage() {
     fetchHistory();
   }, [user]);
 
-  // If projectId present, fetch project metadata and project history
+  // Load project specific history
   useEffect(() => {
     if (!user || !projectId) {
-      setProjectMeta(null);
       setProjectHistory([]);
       return;
     }
 
     let mounted = true;
-    const fetchProject = async () => {
+    const fetchProjectHistory = async () => {
       try {
-        const pRef = doc(db, "users", user.uid, "projects", projectId);
-        const pSnap = await getDoc(pRef);
-        if (mounted && pSnap.exists()) {
-          setProjectMeta({ id: pSnap.id, ...pSnap.data() });
-        } else {
-          setProjectMeta(null);
-        }
-
-        // project history (ordered newest first)
-        // project-specific history is a subcollection; use getDocs
         const historySnaps = await getDocs(
           collection(db, "users", user.uid, "projects", projectId, "history")
         );
-        const ph = historySnaps.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const ph: PromptEntry[] = historySnaps.docs.map((d) => {
+          const data = d.data();
+          return { 
+            id: d.id, 
+            prompt: data.prompt,
+            response: data.response,
+            mode: data.mode,
+            time: data.time,
+            createdAt: data.createdAt
+           } as PromptEntry;
+        });
         if (mounted) setProjectHistory(ph.reverse());
       } catch (err) {
-        console.error("Failed to fetch project", err);
+        console.error("Failed to fetch project history", err);
       }
     };
 
-    fetchProject();
-
+    fetchProjectHistory();
     return () => {
       mounted = false;
     };
   }, [user, projectId]);
 
-  // Main generation handler
+  // Main generation
   const handleGenerate = async () => {
     if (!prompt.trim()) {
       setResponse("Please enter a prompt before generating.");
       return;
     }
-    if (!user) {
-      // show a quick redirect to signin or prompt the user
-      router.push("/signin");
-      return;
-    }
+    if (!user) return router.push("/signin");
 
     setLoading(true);
     setResponse("");
 
     try {
-      // Call AI API
       const res = await fetch("/api/desyn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -201,8 +213,8 @@ export default function DesynPage() {
       const result = data.result || "No response received.";
       setResponse(result);
 
-      // Build entry
-      const newEntry = {
+      // 1. Prepare data for Firestore (using serverTimestamp)
+      const dbEntry = {
         prompt,
         response: result,
         mode: generationMode,
@@ -210,25 +222,28 @@ export default function DesynPage() {
         createdAt: serverTimestamp(),
       };
 
-      // Update local state immediately
-      setHistory((prev) => [newEntry, ...prev]);
+      // 2. Prepare data for Local State (using Timestamp.now())
+      // This prevents the UI from crashing if it tries to read .toDate() immediately
+      const localEntry: PromptEntry = {
+        ...dbEntry,
+        createdAt: Timestamp.now(), 
+      };
 
-      // Save to user's prompts collection
-      await addDoc(collection(db, "users", user.uid, "prompts"), newEntry);
+      // Update Local State
+      setHistory((prev) => [localEntry, ...prev]);
 
-      // Update weeklyPrompts (Mon..Sun) for chart
+      // Update Firestore
+      await addDoc(collection(db, "users", user.uid, "prompts"), dbEntry);
+
+      // Update Stats
       const statsRef = doc(db, "users", user.uid, "stats", "weeklyPrompts");
-      const weekday = new Date().toLocaleString("en-US", { weekday: "short" }); // Mon, Tue...
+      const weekday = new Date().toLocaleString("en-US", { weekday: "short" });
       await setDoc(
         statsRef,
-        {
-          [weekday]: increment(1),
-          lastUpdated: serverTimestamp(),
-        },
+        { [weekday]: increment(1), lastUpdated: serverTimestamp() },
         { merge: true }
       );
 
-      // Update overview stats for StatCards
       const overviewRef = doc(db, "users", user.uid, "stats", "overview");
       await setDoc(
         overviewRef,
@@ -243,22 +258,16 @@ export default function DesynPage() {
         { merge: true }
       );
 
-      // If there's an active project (projectId), append to that project's history
+      // Update Project History if applicable
       if (projectId) {
         const projectRef = doc(db, "users", user.uid, "projects", projectId);
-        await addDoc(collection(projectRef, "history"), newEntry);
-
-        // update project metadata
+        await addDoc(collection(projectRef, "history"), dbEntry);
         await updateDoc(projectRef, {
           updatedAt: serverTimestamp(),
           lastPrompt: prompt,
         });
-
-        // local projectHistory update so UI shows it right away
-        setProjectHistory((prev) => [newEntry, ...prev]);
+        setProjectHistory((prev) => [localEntry, ...prev]);
       }
-
-      // keep prompt but optionally clear: setPrompt("");
     } catch (err) {
       console.error("Generate error:", err);
       setResponse("Something went wrong. Please try again.");
@@ -267,63 +276,74 @@ export default function DesynPage() {
     }
   };
 
-  // Copy response
   const handleCopy = () => {
     navigator.clipboard.writeText(response || "");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Export ZIP of visible history (if project open export projectHistory, else export global history)
   const handleExportZip = async () => {
     const source = projectId ? projectHistory : history;
-    if (source.length === 0) return alert("No history to export!");
+    if (!source.length) return alert("No history to export!");
     const zip = new JSZip();
-    source.forEach((item: PromptEntry, i: number) => {
-      const fileName = `${i + 1} - ${item.mode}_${item.time?.replace(/:/g, "-")}.txt`;
+    source.forEach((item, i) => {
+      // Safe string replacement
+      const safeTime = item.time ? item.time.replace(/:/g, "-") : "unknown-time";
+      const fileName = `${i + 1} - ${item.mode}_${safeTime}.txt`;
       const content = `Prompt:\n${item.prompt}\n\nResponse:\n${item.response}`;
       zip.file(fileName, content);
     });
-    const blob = await zip.generateAsync({ type: "blob" });
-    saveAs(blob, `${projectId ? projectName?.title ?? "project" : "desyn"}_history.zip`);
+    
+    const zipBlob = await zip.generateAsync({ type: "blob" });
+    const zipName = `${projectId ? project?.title ?? "project" : "desyn"}_history.zip`;
+    saveAs(zipBlob, zipName);
   };
 
   const handleClearHistory = async () => {
-    if (!confirm("Are you sure you want to clear your prompt history locally?")) return;
-    // local clear
-    if (projectId) setProjectHistory([]);
-    else setHistory([]);
-
-    // optionally: delete from Firestore (not implemented automatically to avoid data loss)
+    // Note: This currently only clears local state, not Firestore data.
+    // If you want to delete from Firestore, you need to map through IDs and deleteDoc.
+    if (!confirm("Are you sure you want to clear your local session history?")) return;
+    
+    if (projectId) {
+        setProjectHistory([]);
+    } else {
+        setHistory([]);
+    }
   };
 
-  // UI loading while auth initializing
+  // Loading State
   if (initializing) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-(--panel) text-white">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--panel)] text-white">
         <div className="animate-spin h-8 w-8 border-b-2 border-white rounded-full" />
         <span className="ml-3">Checking authentication...</span>
       </div>
     );
   }
 
-  // If user not signed in -> show signin suggestion
+  // Unauthenticated State
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-(--panel) text-white px-6">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--panel)] text-white px-6">
         <div className="max-w-md text-center bg-[#0b0c10] p-8 rounded-xl border border-gray-800">
           <h2 className="text-xl font-semibold mb-2">{`You're not signed in`}</h2>
-          <p className="text-sm text-[#b0b7c3] mb-6">Sign in to save prompts and continue projects.</p>
+          <p className="text-sm text-[#b0b7c3] mb-6">
+            Sign in to save prompts and continue projects.
+          </p>
           <div className="flex gap-3 justify-center">
-            <button onClick={() => router.push("/signin")} className="px-4 py-2 rounded-lg bg-indigo-600">Go to Sign in</button>
+            <button
+              onClick={() => router.push("/signin")}
+              className="px-4 py-2 rounded-lg bg-indigo-600"
+            >
+              Go to Sign in
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  // choose which history to show in drawer
-  const visibleHistory = projectName ? projectHistory : history;
+  const visibleHistory = projectId ? projectHistory : history;
 
   return (
     <div className="min-h-screen bg-(--panel) text-white flex overflow-hidden relative">

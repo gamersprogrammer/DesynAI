@@ -32,7 +32,7 @@ export default function StatCard({ title, value, delta, icon, path, field }: Sta
     if (!path || !field || !user) return;
 
     const finalPath = path.map((p) => (p === "<uid>" ? user.uid : p));
-    const ref = doc(db, ...finalPath);
+    const ref = doc(db, ...finalPath as [string, string, ...string[]]); // ✅ fixed typing
 
     const unsub = onSnapshot(ref, (snap) => {
       if (!snap.exists()) return;
