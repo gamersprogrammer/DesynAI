@@ -13,8 +13,13 @@ import {
   CartesianGrid,
 } from "recharts";
 
+interface ChartDataItem {
+  day: string;
+  prompts: number;
+}
+
 export default function ChartCard() {
-  const [chartData, setChartData] = useState([]);
+  const [chartData, setChartData] = useState<ChartDataItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const db = getFirestore(app);
@@ -27,8 +32,7 @@ export default function ChartCard() {
 
     const unsubscribe = onSnapshot(statsRef, (snapshot) => {
       if (!snapshot.exists()) {
-        // Initialize with all days as 0
-        const defaultData = [
+        const defaultData: ChartDataItem[] = [
           { day: "Mon", prompts: 0 },
           { day: "Tue", prompts: 0 },
           { day: "Wed", prompts: 0 },
@@ -44,7 +48,7 @@ export default function ChartCard() {
 
       const data = snapshot.data();
 
-      const formatted = [
+      const formatted: ChartDataItem[] = [
         { day: "Mon", prompts: data.Mon || 0 },
         { day: "Tue", prompts: data.Tue || 0 },
         { day: "Wed", prompts: data.Wed || 0 },
